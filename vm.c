@@ -17,6 +17,7 @@ struct kvm {
 
 struct vcpu {
     int fd;
+    int mmap_size;
     struct kvm_run *kvm_run;
 };
 
@@ -45,10 +46,25 @@ void kvm_init(struct kvm *kvm) {
     assert(ret >= 0);
 }
 
+void vcpu_init(struct kvm *kvm, struct vcpu *vcpu) {
+
+    vcpu->fd = ioctl(kvm->vm_fd, KVM_CREATE_VCPU, 0);
+    assert(vcpu->fd >= 0);
+
+    vcpu->mmap_size = ioctl(kvm->sys_fd, KVM_GET_VCPU_MMAP_SIZE, 0);
+    assert(vcpu->mmap_size > 0);
+
+    vcpu->kvm_run = mmap(NULL, vcpu->mmap_size, PROT_READ | PROT_WRITE, MAP_SHARED, vcpu->fd, 0);
+    assert(vcpu->kvm_run != MAP_FAILED);
+}
+
 int main(void) {
     struct kvm kvm;
+    struct vcpu vcpu;
 
     kvm_init(&kvm);
+
+    vcpu_init(&kvm, &vcpu);
 
 
     return 0;
