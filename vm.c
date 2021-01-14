@@ -46,6 +46,19 @@ void kvm_init(struct kvm *kvm) {
     assert(ret >= 0);
 }
 
+void kvm_del(struct kvm *kvm) {
+    int ret;
+
+    ret = munmap(kvm->mem, 0x1000);
+    assert(ret >= 0);
+
+    ret = close(kvm->vm_fd);
+    assert(ret >= 0);
+
+    ret = close(kvm->sys_fd);
+    assert(ret >= 0);
+}
+
 void vcpu_init(struct kvm *kvm, struct vcpu *vcpu) {
 
     vcpu->fd = ioctl(kvm->vm_fd, KVM_CREATE_VCPU, 0);
@@ -58,14 +71,29 @@ void vcpu_init(struct kvm *kvm, struct vcpu *vcpu) {
     assert(vcpu->kvm_run != MAP_FAILED);
 }
 
+void vcpu_del(struct vcpu *vcpu) {
+    int ret;
+
+    ret = munmap(vcpu->kvm_run, vcpu->mmap_size);
+    assert(ret >= 0);
+
+    ret = close(vcpu->fd);
+    assert(ret >= 0);
+}
+
 int main(void) {
     struct kvm kvm;
     struct vcpu vcpu;
 
+    // Init
     kvm_init(&kvm);
 
     vcpu_init(&kvm, &vcpu);
 
+    // Cleanup
+    vcpu_del(&vcpu);
+
+    kvm_del(&kvm);
 
     return 0;
 }
