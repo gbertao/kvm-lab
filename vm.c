@@ -6,6 +6,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <stddef.h>
+#include <string.h>
+#include <stdint.h>
 
 
 struct kvm {
@@ -23,6 +25,7 @@ struct vcpu {
 
 void kvm_init(struct kvm *kvm) {
     struct kvm_userspace_memory_region mem_reg;
+    const uint8_t code[] = {0xb8, 0x0a, 0x00, 0x00, 0x00, 0xf4};
     int ret;
 
     kvm->sys_fd = open("/dev/kvm", O_RDWR);
@@ -36,6 +39,8 @@ void kvm_init(struct kvm *kvm) {
 
     kvm->mem = mmap(NULL, 0x1000, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
     assert(kvm->mem != MAP_FAILED);
+
+    memcpy(kvm->mem, code, sizeof(code));
 
     mem_reg.slot = 0;
     mem_reg.flags = 0;
@@ -81,14 +86,54 @@ void vcpu_del(struct vcpu *vcpu) {
     assert(ret >= 0);
 }
 
+int kvm_run(struct kvm *kvm, struct vcpu *vcpu) {
+    struct kvm_regs regs;
+    struct kvm_sregs sregs;
+    int cont = 0, ret;
+
+    ret = ioctl(vcpu->fd, KVM_GET_SREGS, &sregs);
+    assert(ret >= 0);
+
+    sregs.cs.base = 0;
+    sregs.cs.selector = 0;
+
+    ret = ioctl(vcpu->fd, KVM_SET_SREGS, &sregs);
+    assert(ret >= 0);
+
+    regs.rip = 0x1000;
+    regs.rax = 2;
+    regs.rflags = 0x2;
+    ret = ioctl(vcpu->fd, KVM_SET_REGS, &regs);
+    assert(ret >= 0);
+
+    while (cont) {
+        ret = ioctl(vcpu->fd, KVM_RUN, NULL);
+        assert(ret >= 0);
+        switch (vcpu->kvm_run->exit_reason) {
+            case KVM_EXIT_HLT:
+                ret = ioctl(vcpu->fd, KVM_GET_REGS, &regs);
+                return regs.rax;
+            default:
+                cont = 0;
+                break;
+        }
+    }
+
+    return -1;
+}
+
 int main(void) {
     struct kvm kvm;
     struct vcpu vcpu;
+    int ret;
 
     // Init
     kvm_init(&kvm);
 
     vcpu_init(&kvm, &vcpu);
+
+    // Run
+    ret = kvm_run(&kvm, &vcpu);
 
     // Cleanup
     vcpu_del(&vcpu);
