@@ -1,13 +1,14 @@
 #include <assert.h>
 #include <fcntl.h>
 #include <linux/kvm.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdint.h>
+#include <unistd.h>
 
 
 struct kvm {
@@ -89,7 +90,7 @@ void vcpu_del(struct vcpu *vcpu) {
 int kvm_run(struct kvm *kvm, struct vcpu *vcpu) {
     struct kvm_regs regs;
     struct kvm_sregs sregs;
-    int cont = 0, ret;
+    int cont = 1, ret;
 
     ret = ioctl(vcpu->fd, KVM_GET_SREGS, &sregs);
     assert(ret >= 0);
@@ -111,6 +112,7 @@ int kvm_run(struct kvm *kvm, struct vcpu *vcpu) {
         assert(ret >= 0);
         switch (vcpu->kvm_run->exit_reason) {
             case KVM_EXIT_HLT:
+	    case KVM_EXIT_MMIO:
                 ret = ioctl(vcpu->fd, KVM_GET_REGS, &regs);
                 return regs.rax;
             default:
@@ -125,7 +127,7 @@ int kvm_run(struct kvm *kvm, struct vcpu *vcpu) {
 int main(void) {
     struct kvm kvm;
     struct vcpu vcpu;
-    int ret;
+    int ret = 0;
 
     // Init
     kvm_init(&kvm);
@@ -140,5 +142,5 @@ int main(void) {
 
     kvm_del(&kvm);
 
-    return 0;
+    return ret;
 }
