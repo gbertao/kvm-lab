@@ -10,3 +10,5 @@ Some code used to learn KVM API.
 [exp 4](exp4): Testing jump on real mode.
 
 [exp 5](exp5): push and pop on real mode.
+
+[exp 6](exp6): Func call on real mode.
